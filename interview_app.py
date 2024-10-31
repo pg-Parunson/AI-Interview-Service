@@ -668,7 +668,7 @@ def main():
             
             **개발자:** 정재호 (a.k.a Jeff)
             **이메일:** iwogh3176@gmail.com
-            **GitHub:** [pg-Parunson/ai-interview](https://github.com/pg-Parunson/ai-interview-coach)
+            **GitHub:** [pg-Parunson/ai-interview-coach](https://github.com/pg-Parunson/ai-interview-coach)
             
             *Last Updated: {LAST_UPDATED}*
 
