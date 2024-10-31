@@ -14,7 +14,14 @@ import streamlit as st
 import streamlit.components.v1 as components
 import google.generativeai as genai
 from gtts import gTTS
-import speech_recognition as sr
+
+# 음성 인식 기능 조건부 임포트
+ENABLE_SPEECH = False  # 음성 기능 비활성화
+try:
+    import speech_recognition as sr
+    ENABLE_SPEECH = True
+except ImportError:
+    pass
 
 # 음성 관련 유틸리티 함수들
 def text_to_speech(text: str) -> str:
@@ -38,32 +45,9 @@ def text_to_speech(text: str) -> str:
 
 def speech_to_text() -> str:
     """마이크로부터 음성을 입력받아 텍스트로 변환"""
-    r = sr.Recognizer()
-    try:
-        with sr.Microphone() as source:
-            st.info("🎤 말씀해주세요...")
-            r.adjust_for_ambient_noise(source)
-            
-            # 녹음 중단 확인
-            if not st.session_state.is_recording:
-                return ""
-                
-            audio = r.listen(source, timeout=5)
-            
-            # 녹음 중단 확인
-            if not st.session_state.is_recording:
-                return ""
-                
-            st.info("음성을 텍스트로 변환중...")
-            text = r.recognize_google(audio, language="ko-KR")
-            return text
-    except sr.UnknownValueError:
-        st.error("음성을 인식할 수 없습니다. 다시 시도해주세요.")
-    except sr.RequestError:
-        st.error("음성 인식 서비스에 접근할 수 없습니다.")
-    except Exception as e:
-        st.error(f"음성 인식 중 오류가 발생했습니다: {str(e)}")
-    return ""
+    if not ENABLE_SPEECH:
+        st.error("음성 인식 기능을 사용할 수 없습니다.")
+        return ""
 
 @dataclass
 class Conversation:
