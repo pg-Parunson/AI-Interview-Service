@@ -637,8 +637,8 @@ def main():
         page_icon="🤖",
         layout="wide",
         menu_items={
-            'Get Help': "https://github.com/pg-Parunson/ai-interview",
-            'Report a bug': "https://github.com/pg-Parunson/ai-interview/issues",
+            'Get Help': "https://github.com/pg-Parunson/ai-interview-service",
+            'Report a bug': "https://github.com/pg-Parunson/ai-interview-service/issues",
             'About': """
             ### AI 면접 코치 - LLM 기반 개발자 면접 시뮬레이터
             
@@ -650,7 +650,7 @@ def main():
             
             **개발자:** 정재호 (a.k.a Jeff)
             **이메일:** iwogh3176@gmail.com
-            **GitHub:** [pg-Parunson/ai-interview](https://github.com/pg-Parunson/ai-interview)
+            **GitHub:** [pg-Parunson/ai-interview](https://github.com/pg-Parunson/ai-interview-service)
             
             © 2024 AI Interview Coach. All rights reserved.
             """
