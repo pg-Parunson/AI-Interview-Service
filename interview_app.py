@@ -767,12 +767,11 @@ def main():
             )
 
         # 답변 제출 처리
-        if answer:
-            if st.button("답변 제출", key="submit_answer", type="primary", use_container_width=True):
-                if not answer.strip():
-                    st.warning("답변을 입력해주세요.")
-                    return
-
+        submit_button = st.button("답변 제출", key="submit_answer", type="primary", use_container_width=True)
+        if submit_button:
+            if not answer.strip():
+                st.warning("답변을 입력해주세요.")
+            else:
                 with st.spinner('답변을 분석중입니다...'):
                     # 답변 처리
                     response = interviewer.handle_answer(session, answer)
