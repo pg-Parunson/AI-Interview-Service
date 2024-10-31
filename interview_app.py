@@ -111,7 +111,30 @@ def initialize_session():
     if 'session' not in st.session_state:
         st.session_state.session = InterviewSession()
         st.session_state.submitted = False
+
+class UsageLimits:
+    MAX_ANSWER_LENGTH = 500  # 답변 최대 글자수
+    MAX_TOPICS_PER_SESSION = 3  # 세션당 최대 주제 수
+    MAX_RESPONSES_PER_TOPIC = 3  # 주제당 최대 답변 횟수
+    
+def enforce_limits(session: InterviewSession, answer: str) -> Tuple[bool, str]:
+    """사용량 제한 검사"""
+    # 답변 길이 체크
+    if len(answer) > UsageLimits.MAX_ANSWER_LENGTH:
+        return False, f"답변은 {UsageLimits.MAX_ANSWER_LENGTH}자를 초과할 수 없습니다."
+    
+    # 현재 주제에서의 답변 횟수 체크
+    current_responses = len([msg for msg in session.current_conversation if msg.role == 'candidate'])
+    if current_responses >= UsageLimits.MAX_RESPONSES_PER_TOPIC:
+        return False, "이 주제에 대한 최대 답변 횟수에 도달했습니다. 다음 주제로 넘어가주세요."
+    
+    # 총 주제 수 체크
+    if len(session.completed_topics) >= UsageLimits.MAX_TOPICS_PER_SESSION:
+        return False, "연습 가능한 최대 주제 수에 도달했습니다. 새로운 세션을 시작해주세요."
         
+    return True, ""
+
+
 class MockInterviewer:
     def __init__(self, api_key: str):
         genai.configure(api_key=api_key)
@@ -721,6 +744,12 @@ def main():
             if not answer.strip():
                 st.warning("답변을 입력해주세요.")
             else:
+                # 사용량 제한 검사
+                is_allowed, limit_message = enforce_limits(session, answer)
+                if not is_allowed:
+                    st.warning(limit_message)
+                    return
+                
                 with st.spinner('답변을 분석중입니다...'):
                     response = interviewer.handle_answer(session, answer)
                     st.session_state.current_answer = ''
