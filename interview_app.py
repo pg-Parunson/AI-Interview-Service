@@ -4,7 +4,9 @@ import json
 import time
 import base64
 import tempfile
+import csv
 from pathlib import Path
+from io import StringIO
 from datetime import datetime
 from typing import List, Dict, Tuple
 from dataclasses import dataclass, field
@@ -155,6 +157,65 @@ def enforce_limits(session: InterviewSession, answer: str) -> Tuple[bool, str]:
             return False, "이번 세션의 연습량이 충분합니다. 잠시 휴식 후 새로운 세션을 시작해주세요."
         
     return True, ""
+
+def export_to_txt(session: InterviewSession) -> str:
+    """면접 내용을 읽기 쉬운 텍스트 형식으로 변환"""
+    lines = []
+    
+    # 헤더 정보
+    lines.extend([
+        "=" * 50,
+        "📝 면접 기록",
+        "=" * 50,
+        f"직무: {session.position}",
+        f"일시: {datetime.now().strftime('%Y년 %m월 %d일 %H:%M')}",
+        f"진행된 주제: {', '.join(session.completed_topics)}",
+        "\n" + "=" * 50 + "\n"
+    ])
+    
+    # 주제별 대화 내용
+    for topic in session.completed_topics:
+        topic_messages = [msg for msg in session.current_conversation 
+                         if getattr(msg, 'topic', None) == topic]
+        
+        lines.extend([
+            f"[주제] {topic}",
+            "-" * 50
+        ])
+        
+        # 대화 내용
+        for msg in topic_messages:
+            timestamp = msg.timestamp.strftime('%H:%M:%S')
+            role = '👤 면접관' if msg.role == 'interviewer' else '🧑‍💻 지원자'
+            lines.append(f"\n[{timestamp}] {role}:")
+            lines.append(msg.content)
+            
+            # 피드백이 있는 경우
+            if msg.feedback:
+                lines.extend([
+                    "\n🔍 피드백:",
+                    "* 이해도 평가:",
+                    f"  {msg.feedback['understanding']}",
+                    "\n* 강점:",
+                    *[f"  - {strength}" for strength in msg.feedback['strengths']],
+                    "\n* 개선 필요:",
+                    *[f"  - {improvement}" for improvement in msg.feedback['improvements']],
+                    "\n* 학습 제안:",
+                    *[f"  - {suggestion}" for suggestion in msg.feedback['suggestions']]
+                ])
+            
+        lines.extend(["\n" + "=" * 50 + "\n"])
+    
+    # 최종 평가 추가
+    if session.final_feedback:
+        lines.extend([
+            "📋 최종 평가",
+            "=" * 50,
+            session.final_feedback,
+            "\n" + "=" * 50
+        ])
+    
+    return '\n'.join(lines)
 
 class MockInterviewer:
     def __init__(self, api_key: str):
@@ -414,40 +475,43 @@ class MockInterviewer:
 
     def generate_final_evaluation(self, completed_topics: List[str], conversation_history: List[Conversation], position: str) -> str:
         """최종 평가 생성"""
-        # 실제 답변이 있는지 확인
-        total_answers = len([msg for msg in conversation_history if msg.role == 'candidate' and msg.content.strip()])
-        total_questions = len([msg for msg in conversation_history if msg.role == 'interviewer'])
+        # 실제 답변이 있는지 확인 (수정된 부분)
+        valid_answers = [msg for msg in conversation_history if msg.role == 'candidate' and msg.content.strip()]
+        valid_questions = [msg for msg in conversation_history if msg.role == 'interviewer']
         
-        # 답변이 없거나 매우 적은 경우
-        if total_answers == 0 or (total_questions > 0 and total_answers/total_questions < 0.5):
+        # 답변 비율 계산 수정
+        answer_ratio = len(valid_answers) / len(valid_questions) if valid_questions else 0
+        
+        # 평가 기준 완화 (수정된 부분)
+        if len(valid_answers) == 0 or answer_ratio < 0.3:  # 기존 0.5에서 0.3으로 완화
             return """
             [최종 평가]
             
-            면접 참여도 및 답변이 매우 부족하여 정확한 평가가 어렵습니다.
+            면접 참여가 다소 제한적이었습니다.
             
-            1. 평가 불가 사유
-            - 질문에 대한 답변이 없거나 매우 부족함
-            - 기술적 역량을 판단할 수 있는 충분한 정보가 없음
+            1. 평가 현황
+            - 일부 질문에 대한 답변이 누락되었습니다
+            - 보다 상세한 답변이 필요한 것으로 보입니다
             
             2. 제안사항
-            - 기술 면접 준비를 보다 철저히 하신 후 다시 도전하시기를 권장드립니다
-            - 기본적인 개발 지식과 실무 경험을 쌓으신 후 재응시를 고려해주세요
+            - 답변 시 본인의 경험과 지식을 최대한 활용하여 설명해주세요
+            - 모르는 내용이라도 관련된 내용이나 본인의 생각을 공유해주세요
             
-            3. 참고사항
-            - 면접 시에는 모르는 내용이라도 본인의 생각을 최대한 표현하는 것이 중요합니다
-            - 완벽하지 않더라도 본인이 알고 있는 내용을 설명하려 노력하는 것이 좋습니다
+            3. 향후 준비 방향
+            - 기술 면접 예상 질문들을 미리 준비해보세요
+            - 실제 면접 상황을 가정하고 답변을 연습해보세요
             """
         
-        # 기존의 최종 평가 생성 로직 (실제 답변이 있는 경우)
+        # 기존의 최종 평가 생성 로직
         prompt = f"""
         당신은 {position} 개발자 면접관입니다.
         지금까지의 모든 면접 내용을 바탕으로 최종 평가를 진행해주세요.
         
         평가할 때 주의사항:
-        1. 실제 답변 내용만을 기반으로 평가해주세요.
-        2. 구체적인 답변이 없는 부분은 평가에서 제외해주세요.
-        3. 답변이 부족한 경우 그 사실을 명시해주세요.
-        4. 과대 평가는 피해주세요.
+        1. 답변의 질적인 측면에 중점을 두어 평가해주세요
+        2. 실제 답변 내용을 기반으로 구체적인 피드백을 제공해주세요
+        3. 개선이 필요한 부분은 건설적인 제안으로 표현해주세요
+        4. 긍정적인 부분도 반드시 포함해주세요
         
         면접 진행 주제: {', '.join(completed_topics)}
         대화 내역:
@@ -455,23 +519,24 @@ class MockInterviewer:
         
         다음 형식으로 평가를 작성해주세요:
         
-        [합격 여부]
+        [종합 평가]
         
-        1. 답변 참여도
-        - 답변의 충실성
-        - 의사소통 태도
-        
-        2. 주제별 평가 (답변이 있는 주제만 평가)
-        - 각 주제별 이해도
+        1. 전반적인 역량
+        - 기술적 이해도
         - 실무 적용 능력
+        - 의사소통 능력
         
-        3. 확인된 강점 (실제 답변에서 확인된 부분만)
+        2. 주요 강점
+        - 기술적 강점
+        - 소프트 스킬
         
-        4. 개선 필요 사항
+        3. 개선 제안사항
+        - 보완이 필요한 영역
+        - 구체적인 학습 방향
         
-        5. 향후 제언
-        - 학습 방향
-        - 실무 능력 향상을 위한 제안
+        4. 종합 의견
+        - 현재 수준 평가
+        - 성장 가능성
         """
         
         return self.get_model_response(prompt)
@@ -654,7 +719,7 @@ def get_api_key():
     
 # 상단에 버전 정보 상수 추가
 VERSION = "1.0.0"  # Semantic Versioning 사용
-LAST_UPDATED = "2024-10-31"
+LAST_UPDATED = "2024-11-01"
 VERSION_INFO = {
     "현재 버전": VERSION,
     "마지막 업데이트": LAST_UPDATED,
@@ -846,6 +911,22 @@ def main():
     if session.final_feedback:
         st.write("## 📋 최종 면접 평가")
         st.markdown(session.final_feedback)
+        
+        # 면접 기록 다운로드 버튼
+        st.write("### 💾 면접 기록 다운로드")
+        
+        txt_data = export_to_txt(session)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        position = session.position.replace('/', '_')
+        filename = f"면접기록_{position}_{timestamp}.txt"
+        
+        st.download_button(
+            label="📝 면접 기록 다운로드 (TXT)",
+            data=txt_data.encode('utf-8'),
+            file_name=filename,
+            mime="text/plain",
+            help="면접 내용을 텍스트 파일로 다운로드합니다. 대화 내용과 피드백을 쉽게 확인할 수 있습니다."
+        )
         
         if st.button("새로운 면접 시작", key="new_interview", type="primary"):
             st.session_state.session = InterviewSession()
