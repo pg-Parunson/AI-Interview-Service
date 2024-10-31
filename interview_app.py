@@ -113,15 +113,27 @@ def initialize_session():
         st.session_state.submitted = False
 
 class UsageLimits:
-    MAX_ANSWER_LENGTH = 2000  # 답변 최대 글자수 확장 (500 -> 2000)
-    MAX_TOPICS_PER_SESSION = 5  # 세션당 최대 주제 수 확장 (3 -> 5)
-    MAX_RESPONSES_PER_TOPIC = 5  # 주제당 최대 답변 횟수 확장 (3 -> 5)
+    MAX_ANSWER_LENGTH = 3000  # 답변 최대 글자수 확장
+    MAX_TOPICS_PER_SESSION = 5  # 세션당 최대 주제 수
+    MAX_RESPONSES_PER_TOPIC = 10  # 주제당 최대 답변 횟수
     
 def enforce_limits(session: InterviewSession, answer: str) -> Tuple[bool, str]:
     """사용량 제한 검사"""
-    # 답변 길이 체크
+    # 답변 길이 체크 - 경고와 제한을 분리
     if len(answer) > UsageLimits.MAX_ANSWER_LENGTH:
-        return False, f"답변은 {UsageLimits.MAX_ANSWER_LENGTH}자를 초과할 수 없습니다."
+        return False, f"""
+        답변이 너무 깁니다. {UsageLimits.MAX_ANSWER_LENGTH}자 이내로 작성해주세요.
+        
+        현재 답변 길이: {len(answer)}자
+        제한 길이: {UsageLimits.MAX_ANSWER_LENGTH}자
+        
+        💡 Tip: 답변이 길어진다면 핵심 내용을 중심으로 구조화하여 설명하는 것이 효과적입니다.
+        """
+    elif len(answer) > UsageLimits.MAX_ANSWER_LENGTH * 0.8:  # 80% 이상일 때 경고
+        st.warning(f"""
+        답변이 제한 길이에 근접하고 있습니다.
+        현재 답변 길이: {len(answer)}자 / {UsageLimits.MAX_ANSWER_LENGTH}자
+        """)
     
     # 현재 주제에서의 답변 횟수 체크
     current_responses = len([msg for msg in session.current_conversation if msg.role == 'candidate'])
