@@ -631,14 +631,32 @@ def get_api_key():
             help="https://makersuite.google.com/app/apikey 에서 발급받을 수 있습니다"
         )
     
+# 상단에 버전 정보 상수 추가
+VERSION = "1.0.0"  # Semantic Versioning 사용
+LAST_UPDATED = "2024-10-31"
+VERSION_INFO = {
+    "현재 버전": VERSION,
+    "마지막 업데이트": LAST_UPDATED,
+    "주요 기능": [
+        "프론트엔드/백엔드/풀스택 직무 면접 지원",
+        "Gemini Pro 기반 지능형 면접관",
+        "실시간 피드백 및 개선점 제공",
+        "주제별 심층 분석"
+    ],
+    "변경 이력": {
+        "1.0.0": "최초 공개 버전",
+        # 향후 업데이트 기록 추가
+    }
+}
+
 def main():
     st.set_page_config(
         page_title="AI 면접 코치 - 개발자 기술면접 연습",
         page_icon="🤖",
         layout="wide",
         menu_items={
-            'Get Help': "https://github.com/pg-Parunson/ai-interview-service",
-            'Report a bug': "https://github.com/pg-Parunson/ai-interview-service/issues",
+            'Get Help': "https://github.com/pg-Parunson/ai-interview-coach",
+            'Report a bug': "https://github.com/pg-Parunson/ai-interview-coach/issues",
             'About': """
             ### AI 면접 코치 - LLM 기반 개발자 면접 시뮬레이터
             
@@ -650,8 +668,10 @@ def main():
             
             **개발자:** 정재호 (a.k.a Jeff)
             **이메일:** iwogh3176@gmail.com
-            **GitHub:** [pg-Parunson/ai-interview](https://github.com/pg-Parunson/ai-interview-service)
+            **GitHub:** [pg-Parunson/ai-interview](https://github.com/pg-Parunson/ai-interview-coach)
             
+            *Last Updated: {LAST_UPDATED}*
+
             © 2024 AI Interview Coach. All rights reserved.
             """
         },
@@ -661,6 +681,22 @@ def main():
     st.title("🤖 AI 면접 코치 - 개발자 기술면접 연습")
     st.caption("🌱 면접 연습을 통해 더 나은 개발자로 성장하세요. 여러분의 도전을 응원합니다!")
     
+    # 버전 정보를 사이드바에 표시
+    with st.sidebar:
+        st.write(f"### 📌 v{VERSION}")
+        if st.button("릴리즈 노트 보기", key="release_notes"):
+            with st.expander("상세 정보", expanded=True):
+                st.write(f"**현재 버전:** v{VERSION}")
+                st.write(f"**마지막 업데이트:** {LAST_UPDATED}")
+                
+                st.write("**주요 기능:**")
+                for feature in VERSION_INFO["주요 기능"]:
+                    st.write(f"- {feature}")
+                
+                st.write("**변경 이력:**")
+                for version, changes in VERSION_INFO["변경 이력"].items():
+                    st.write(f"- v{version}: {changes}")
+
     initialize_session()
     
     # Google API 키 설정
