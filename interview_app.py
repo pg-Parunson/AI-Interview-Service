@@ -597,18 +597,33 @@ export { AudioButton, FeedbackSection, ConversationView };
 
 def main():
     st.set_page_config(
-        page_title="AI 모의 개발자 면접",
-        page_icon="💼",
+        page_title="AI 면접 코치 - 개발자 기술면접 연습",
+        page_icon="🤖",
         layout="wide",
         menu_items={
-            'Get Help': None,
-            'Report a bug': None,
-            'About': "Made by Jeff (iwogh3176@gmail.com)"
-        }
+            'Get Help': "https://github.com/pg-Parunson/ai-interview",
+            'Report a bug': "https://github.com/pg-Parunson/ai-interview/issues",
+            'About': """
+            ### AI 면접 코치 - LLM 기반 개발자 면접 시뮬레이터
+            
+            이 서비스는 개발자 취업 준비생을 위한 AI 기반 모의 면접 시스템입니다.
+            
+            - 💻 프론트엔드/백엔드/풀스택 직무 지원
+            - 🤖 Gemini Pro 기반의 지능형 면접관
+            - 📊 상세한 피드백과 개선점 제공
+            
+            **개발자:** 정재호 (a.k.a Jeff)
+            **이메일:** iwogh3176@gmail.com
+            **GitHub:** [pg-Parunson/ai-interview](https://github.com/pg-Parunson/ai-interview)
+            
+            © 2024 AI Interview Coach. All rights reserved.
+            """
+        },
+        initial_sidebar_state="auto"
     )
     
-    st.title("🤖 LLM기반 AI 모의 개발자 면접")
-    st.caption("Made by Jeff (iwogh3176@gmail.com)")
+    st.title("🤖 AI 면접 코치 - 개발자 기술면접 연습")
+    st.caption("🌱 면접 연습을 통해 더 나은 개발자로 성장하세요. 여러분의 도전을 응원합니다!")
     
     initialize_session()
     
