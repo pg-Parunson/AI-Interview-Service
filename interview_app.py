@@ -65,7 +65,6 @@ class InterviewSession:
     waiting_for_next: bool = False
     interview_complete: bool = False
     final_feedback: str = None
-    voice_mode: bool = False
 
     def add_message(self, role: str, content: str, feedback: Dict = None):
         self.current_conversation.append(
@@ -85,30 +84,9 @@ def render_conversation(messages: List[Conversation]) -> None:
     """대화형 UI 렌더링"""
     for msg in messages:
         if msg.role == 'interviewer':
-            cols = st.columns([9, 1])  # 면접관 메시지는 오디오 버튼이 있으므로 9:1 비율
-            cols[0].write(f"👤 면접관: {msg.content}")
-            
-            # 면접관 메시지에 대해 음성 재생 버튼 추가
-            audio_base64 = text_to_speech(msg.content)
-            cols[1].markdown(
-                f"""
-                <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                    <button
-                        onclick="(() => {{
-                            const audio = new Audio('data:audio/mp3;base64,{audio_base64}');
-                            audio.play().catch(e => console.error('Audio playback error:', e));
-                        }})();"
-                        style="background: none; border: none; cursor: pointer; font-size: 1.5em;"
-                        title="질문 듣기"
-                    >
-                        🔊
-                    </button>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            # 음성 버튼 제거하고 전체 너비 사용
+            st.write(f"👤 면접관: {msg.content}")
         else:
-            # 지원자 메시지는 오디오 버튼이 없으므로 전체 너비 사용
             st.write(f"🧑‍💻 지원자: {msg.content}")
         
         # 피드백이 있는 경우 표시
@@ -133,7 +111,6 @@ def initialize_session():
     if 'session' not in st.session_state:
         st.session_state.session = InterviewSession()
         st.session_state.submitted = False
-        st.session_state.is_recording = False
         
 class MockInterviewer:
     def __init__(self, api_key: str):
@@ -653,18 +630,6 @@ def main():
     session = st.session_state.session
     interviewer = st.session_state.interviewer
 
-    # 음성 기능 설정
-    with st.sidebar:
-        st.write("### 🎙️ 음성 기능 설정")
-        session.voice_mode = st.toggle("음성 답변 모드 활성화", value=False)
-        if session.voice_mode:
-            st.info("""
-            음성 답변 사용 방법:
-            1. 답변 입력란 옆의 마이크 버튼을 클릭하세요
-            2. 마이크를 통해 답변을 말씀해주세요
-            3. 음성이 텍스트로 변환되면 필요시 수정할 수 있습니다
-            """)
-
     # 포지션 선택
     if not session.position:
         st.write("### 지원하시는 포지션을 선택해주세요:")
@@ -728,57 +693,23 @@ def main():
         
         # 답변 입력 UI
         st.write("### 답변 입력")
-        if session.voice_mode:
-            col1, col2 = st.columns([1, 8])
-            
-            with col1:
-                if not st.session_state.get('is_recording', False):
-                    if st.button("🎤", key="mic_button", help="클릭하여 음성으로 답변하기", use_container_width=True):
-                        st.session_state.is_recording = True
-                        st.rerun()
-                else:
-                    if st.button("⏹️", key="stop_recording", help="음성 인식 중단", use_container_width=True):
-                        st.session_state.is_recording = False
-                        st.rerun()
-            
-            with col2:
-                answer = st.text_area(
-                    label="답변을 입력하세요:",
-                    value=st.session_state.get('current_answer', ''),
-                    key="answer_input",
-                    height=150,
-                    placeholder="이 곳에 답변을 입력하거나 왼쪽 마이크 버튼을 눌러 음성으로 답변해주세요..."
-                )
+        answer = st.text_area(
+            label="답변을 입력하세요:",
+            key="answer_input",
+            height=150,
+            placeholder="이 곳에 답변을 입력해주세요..."
+        )
 
-            # 음성 인식 중이면 음성 인식 실행
-            if st.session_state.get('is_recording', False):
-                with st.spinner("음성을 인식중입니다..."):
-                    voice_answer = speech_to_text()
-                    if voice_answer:
-                        st.session_state.current_answer = voice_answer
-                        st.session_state.is_recording = False
-                        st.rerun()
-        else:
-            answer = st.text_area(
-                label="답변을 입력하세요:",
-                key="answer_input",
-                height=150,
-                placeholder="이 곳에 답변을 입력해주세요..."
-            )
-
-        # 답변 제출 처리
+        # 답변 제출 버튼
         submit_button = st.button("답변 제출", key="submit_answer", type="primary", use_container_width=True)
         if submit_button:
             if not answer.strip():
                 st.warning("답변을 입력해주세요.")
             else:
                 with st.spinner('답변을 분석중입니다...'):
-                    # 답변 처리
                     response = interviewer.handle_answer(session, answer)
-                    # 답변 입력창 초기화
                     st.session_state.current_answer = ''
                     
-                    # 응답 타입에 따른 처리
                     if response['type'] in ['follow_up', 'hint']:
                         st.rerun()
                     else:  # conclude
