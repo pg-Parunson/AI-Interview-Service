@@ -618,6 +618,19 @@ const ConversationView = ({ messages, feedback }) => {
 export { AudioButton, FeedbackSection, ConversationView };
 """
 
+def get_api_key():
+    """환경에 따라 적절한 방법으로 API 키를 가져옴"""
+    try:
+        # Streamlit Cloud의 secrets에서 가져오기 시도
+        return st.secrets["GOOGLE_API_KEY"]
+    except KeyError:
+        # 로컬 환경에서는 직접 입력받기
+        return st.text_input(
+            "Google API 키를 입력하세요:",
+            type="password",
+            help="https://makersuite.google.com/app/apikey 에서 발급받을 수 있습니다"
+        )
+    
 def main():
     st.set_page_config(
         page_title="AI 면접 코치 - 개발자 기술면접 연습",
@@ -651,9 +664,13 @@ def main():
     initialize_session()
     
     # Google API 키 설정
-    api_key = st.secrets["GOOGLE_API_KEY"]
+    api_key = get_api_key()
     if not api_key:
-        st.error("서비스 점검 중입니다. 잠시 후 다시 시도해주세요.")
+        st.warning("""
+        Google API 키가 필요합니다.
+        1. https://makersuite.google.com/app/apikey 에서 발급
+        2. 발급받은 키를 입력해주세요
+        """)
         return
             
     if 'interviewer' not in st.session_state:
