@@ -651,16 +651,10 @@ def main():
     initialize_session()
     
     # Google API 키 설정
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = st.secrets["GOOGLE_API_KEY"]
     if not api_key:
-        api_key = st.text_input("Google API 키를 입력하세요:", type="password")
-        if not api_key:
-            st.warning("""
-            Google API 키가 필요합니다.
-            1. https://makersuite.google.com/app/apikey 에서 발급
-            2. 발급받은 키를 입력해주세요
-            """)
-            return
+        st.error("서비스 점검 중입니다. 잠시 후 다시 시도해주세요.")
+        return
             
     if 'interviewer' not in st.session_state:
         st.session_state.interviewer = MockInterviewer(api_key)
