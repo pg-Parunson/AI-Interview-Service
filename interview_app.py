@@ -62,25 +62,29 @@ class Conversation:
 class InterviewSession:
     position: str = None
     current_topic: str = None
-    current_conversation: List[Conversation] = field(default_factory=list)
+    conversations: Dict[str, List[Conversation]] = field(default_factory=dict)  # 주제별 대화 내용 저장
     completed_topics: List[str] = field(default_factory=list)
     waiting_for_next: bool = False
     interview_complete: bool = False
     final_feedback: str = None
 
     def add_message(self, role: str, content: str, feedback: Dict = None):
-        self.current_conversation.append(
-            Conversation(role=role, content=content, feedback=feedback)
-        )
+        """대화 내용을 현재 주제에 저장"""
+        if self.current_topic not in self.conversations:
+            self.conversations[self.current_topic] = []
+            
+        new_message = Conversation(role=role, content=content, feedback=feedback)
+        self.conversations[self.current_topic].append(new_message)
+
+    def get_current_conversation(self) -> List[Conversation]:
+        """현재 주제의 대화 내용 반환"""
+        return self.conversations.get(self.current_topic, [])
 
     def clear_current_conversation(self):
+        """주제 완료 처리"""
         if self.current_topic:
             self.completed_topics.append(self.current_topic)
-        self.current_conversation = []
         self.current_topic = None
-
-    def is_topic_complete(self) -> bool:
-        return len(self.current_conversation) >= 2 and self.current_conversation[-1].feedback is not None
 
 def render_conversation(messages: List[Conversation]) -> None:
     """대화형 UI 렌더링"""
@@ -173,54 +177,47 @@ def export_to_txt(session: InterviewSession) -> str:
         "\n" + "=" * 50 + "\n"
     ])
     
-    # conversation 기록을 주제별로 분류
-    topic_conversations = {}
-    current_topic = None
-    
-    # 전체 대화 내용을 순회하면서 주제별로 분류
-    for msg in session.current_conversation:
-        if msg.role == 'interviewer' and not getattr(msg, 'feedback', None):
-            # 새로운 주제의 시작으로 간주
-            for topic in session.completed_topics:
-                if topic in msg.content:
-                    current_topic = topic
-                    if current_topic not in topic_conversations:
-                        topic_conversations[current_topic] = []
-                    break
-        
-        if current_topic:
-            topic_conversations[current_topic].append(msg)
-    
-    # 주제별로 대화 내용 기록
+    # 주제별 대화 내용 출력
     for topic in session.completed_topics:
         lines.extend([
             f"[주제] {topic}",
-            "-" * 50
+            "-" * 50,
+            ""  # 빈 줄 추가
         ])
         
         # 해당 주제의 대화 내용이 있는 경우
-        if topic in topic_conversations:
-            for msg in topic_conversations[topic]:
+        if topic in session.conversations:
+            for msg in session.conversations[topic]:
                 timestamp = msg.timestamp.strftime('%H:%M:%S')
                 role = '👤 면접관' if msg.role == 'interviewer' else '🧑‍💻 지원자'
-                lines.append(f"\n[{timestamp}] {role}:")
-                lines.append(msg.content)
+                lines.extend([
+                    f"[{timestamp}] {role}:",
+                    msg.content,
+                    ""  # 메시지 사이 빈 줄
+                ])
                 
                 # 피드백이 있는 경우
-                if hasattr(msg, 'feedback') and msg.feedback:
+                if msg.feedback:
                     lines.extend([
-                        "\n🔍 피드백:",
+                        "🔍 피드백:",
                         "* 이해도 평가:",
                         f"  {msg.feedback['understanding']}",
-                        "\n* 강점:",
+                        "",
+                        "* 강점:",
                         *[f"  - {strength}" for strength in msg.feedback['strengths']],
-                        "\n* 개선 필요:",
+                        "",
+                        "* 개선 필요:",
                         *[f"  - {improvement}" for improvement in msg.feedback['improvements']],
-                        "\n* 학습 제안:",
-                        *[f"  - {suggestion}" for suggestion in msg.feedback['suggestions']]
+                        "",
+                        "* 학습 제안:",
+                        *[f"  - {suggestion}" for suggestion in msg.feedback['suggestions']],
+                        ""
                     ])
         
-        lines.extend(["\n" + "=" * 50 + "\n"])
+        lines.extend([
+            "=" * 50,
+            ""  # 주제 사이 빈 줄
+        ])
     
     # 최종 평가 추가
     if session.final_feedback:
@@ -228,7 +225,7 @@ def export_to_txt(session: InterviewSession) -> str:
             "📋 최종 평가",
             "=" * 50,
             session.final_feedback,
-            "\n" + "=" * 50
+            "=" * 50
         ])
     
     return '\n'.join(lines)
@@ -407,52 +404,52 @@ class MockInterviewer:
             }
 
     def handle_answer(self, session: InterviewSession, answer: str) -> Dict:
-        """답변 처리 및 다음 상호작용 결정"""
-        current_context = {
-            'position': session.position,
-            'topic': session.current_topic,
-            'history': session.current_conversation
-        }
-        
-        # 답변 분석
-        analysis = self.analyze_answer(answer, current_context)
-        
-        # 답변 저장
-        session.add_message('candidate', answer)
-        
-        if analysis['action'] == 'FOLLOW_UP':
-            # 추가 질문
-            session.add_message('interviewer', analysis['next_response'])
-            return {
-                'type': 'follow_up',
-                'response': analysis['next_response']
-            }
-        elif analysis['action'] == 'HINT':
-            # 힌트 제공
-            session.add_message('interviewer', analysis['next_response'])
-            return {
-                'type': 'hint',
-                'response': analysis['next_response']
-            }
-        else:  # CONCLUDE
-            # 주제 마무리 및 피드백 생성
-            feedback = self.generate_topic_feedback(
-                session.current_conversation,
-                session.current_topic,
-                session.position
-            )
-            
-            session.add_message(
-                'interviewer',
-                analysis['next_response'],
-                feedback=feedback
-            )
-            
-            return {
-                'type': 'conclude',
-                'response': analysis['next_response'],
-                'feedback': feedback
-            }
+      """답변 처리 및 다음 상호작용 결정"""
+      current_context = {
+          'position': session.position,
+          'topic': session.current_topic,
+          'history': session.get_current_conversation()  # 변경된 부분
+      }
+      
+      # 답변 분석
+      analysis = self.analyze_answer(answer, current_context)
+      
+      # 답변 저장
+      session.add_message('candidate', answer)
+      
+      if analysis['action'] == 'FOLLOW_UP':
+          # 추가 질문
+          session.add_message('interviewer', analysis['next_response'])
+          return {
+              'type': 'follow_up',
+              'response': analysis['next_response']
+          }
+      elif analysis['action'] == 'HINT':
+          # 힌트 제공
+          session.add_message('interviewer', analysis['next_response'])
+          return {
+              'type': 'hint',
+              'response': analysis['next_response']
+          }
+      else:  # CONCLUDE
+          # 주제 마무리 및 피드백 생성
+          feedback = self.generate_topic_feedback(
+              session.get_current_conversation(),  # 변경된 부분
+              session.current_topic,
+              session.position
+          )
+          
+          session.add_message(
+              'interviewer',
+              analysis['next_response'],
+              feedback=feedback
+          )
+          
+          return {
+              'type': 'conclude',
+              'response': analysis['next_response'],
+              'feedback': feedback
+          }
 
     def get_next_topic(self, session: InterviewSession) -> str:
         """다음 면접 주제 선택"""
