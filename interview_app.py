@@ -88,22 +88,29 @@ class InterviewSession:
 
     def validate_completion(self) -> Tuple[bool, str]:
         """면접 종료 가능 여부 검증"""
-        # 최소 1개 이상의 주제가 완료되어야 함
-        if not self.completed_topics:
-            return False, "최소 1개 이상의 주제에 대해 답변해야 합니다."
+        # 아무 대화도 없는 경우
+        if not self.completed_topics and not self.current_topic:
+            return False, "최소한 하나의 주제에 대해 대화가 필요합니다."
         
-        # 각 주제별로 최소 1개 이상의 답변이 있어야 함
+        # 현재 진행중인 대화가 있는지 확인
+        total_interactions = 0
+        
+        # 완료된 주제들의 대화 확인
         for topic in self.completed_topics:
             conversation = self.conversations.get(topic, [])
-            candidate_responses = [msg for msg in conversation if msg.role == 'candidate']
-            if not candidate_responses:
-                return False, f"'{topic}' 주제에 대한 답변이 없습니다."
-                
-            # 답변의 유효성 검사 (빈 답변 체크)
-            for response in candidate_responses:
-                if not response.content.strip():
-                    return False, f"'{topic}' 주제에 빈 답변이 있습니다."
+            topic_interactions = len([msg for msg in conversation if msg.role == 'candidate'])
+            total_interactions += topic_interactions
+            
+        # 현재 진행중인 주제의 대화 확인
+        if self.current_topic:
+            current_conversation = self.get_current_conversation()
+            current_interactions = len([msg for msg in current_conversation if msg.role == 'candidate'])
+            total_interactions += current_interactions
         
+        # 최소한 하나 이상의 의미 있는 대화가 있었는지 확인
+        if total_interactions == 0:
+            return False, "면접을 종료하기 위해서는 최소한 하나의 답변이 필요합니다."
+            
         return True, ""
 
 def render_conversation(messages: List[Conversation]) -> None:
@@ -511,153 +518,94 @@ class MockInterviewer:
         return f"{topic}에 대해 설명해주시겠습니까?"
     
     def generate_final_evaluation(self, completed_topics: List[str], conversation_history: List[Conversation], position: str) -> str:
-      """최종 평가 생성"""
-      # 주제별 대화 품질 분석
-      topic_analysis = {}
-      current_topic = None
-      good_topics = []
-      weak_topics = []
-      
-      # 전체 대화 내용을 순회하면서 주제별로 분류
-      for msg in conversation_history:
-          if msg.role == 'interviewer' and not msg.feedback:
-              # 새로운 주제의 시작으로 간주
-              for topic in completed_topics:
-                  if topic in msg.content:
-                      current_topic = topic
-                      if current_topic not in topic_analysis:
-                          topic_analysis[current_topic] = {
-                              'messages': [],
-                              'quality_score': 0
-                          }
-                      break
-          
-          if current_topic:
-              topic_analysis[current_topic]['messages'].append(msg)
-      
-      # 각 주제별 품질 점수 계산
-      for topic, analysis in topic_analysis.items():
-          messages = analysis['messages']
-          
-          # 실제 대화가 있는 경우에만 평가
-          if messages:
-              # 주제별 대화 수
-              conversation_count = len([m for m in messages if m.role == 'candidate'])
-              
-              # 피드백이 있는 메시지 확인
-              feedback_msgs = [m for m in messages if m.feedback]
-              
-              if feedback_msgs:
-                  last_feedback = feedback_msgs[-1].feedback
-                  # 마지막 피드백의 이해도에 따른 점수 할당
-                  understanding_score = 0
-                  if "충분한" in last_feedback['understanding'] or "좋은" in last_feedback['understanding']:
-                      understanding_score = 3
-                  elif "기본적인" in last_feedback['understanding']:
-                      understanding_score = 2
-                  
-                  # 강점 수에 따른 추가 점수
-                  strength_score = min(len(last_feedback['strengths']), 3)
-                  
-                  # 총점 계산 (대화수 * 0.5 + 이해도 + 강점)
-                  quality_score = (min(conversation_count, 4) * 0.5) + understanding_score + strength_score
-                  
-                  if quality_score >= 4:
-                      good_topics.append(topic)
-                  elif quality_score <= 2:
-                      weak_topics.append(topic)
-                      
-                  topic_analysis[topic]['quality_score'] = quality_score
-      
-      # 전체 평가 생성
-      good_topics_count = len(good_topics)
-      total_topics = len(completed_topics)
-      
-      if good_topics_count >= total_topics * 0.6:  # 60% 이상의 주제에서 좋은 평가
-          prompt = f"""
-          당신은 {position} 개발자 면접관입니다.
-          전반적으로 우수한 면접 수행을 보여준 지원자에 대한 종합 평가를 진행해주세요.
-          
-          다음 정보를 참고해 주세요:
-          - 잘 수행한 주제: {', '.join(good_topics)}
-          - 보완이 필요한 주제: {', '.join(weak_topics)}
-          
-          평가 작성 시 다음 사항을 포함해주세요:
-          1. 전반적인 기술 이해도
-          2. 의사소통 능력
-          3. 실무 적용 가능성
-          4. 향후 발전 가능성
-          5. 개선이 필요한 부분에 대한 구체적인 제안
-          
-          긍정적인 측면에 중점을 두되, 개선점도 건설적으로 제시해주세요.
-          """
-      else:
-          # 기존 prompt 사용
-          prompt = f"""
-          당신은 {position} 개발자 면접관입니다.
-          지금까지의 모든 면접 내용을 바탕으로 균형잡힌 평가를 진행해주세요.
-          
-          면접 진행 주제: {', '.join(completed_topics)}
-          잘 수행한 주제: {', '.join(good_topics)}
-          보완이 필요한 주제: {', '.join(weak_topics)}
-          
-          대화 내역을 분석한 결과:
-          {', '.join([f"{topic}: {analysis['quality_score']:.1f}점" for topic, analysis in topic_analysis.items()])}
-          
-          다음 형식으로 평가를 작성해주세요:
-          
-          [종합 평가]
-          
-          1. 전반적인 역량
-          - 기술적 이해도
-          - 실무 적용 능력
-          - 의사소통 능력
-          
-          2. 주요 강점
-          - 잘 수행한 주제들에서 보여준 역량
-          - 의사소통 방식의 장점
-          
-          3. 개선 제안사항
-          - 보완이 필요한 영역
-          - 구체적인 학습 방향
-          
-          4. 종합 의견
-          - 현재 수준 평가
-          - 성장 가능성
-          
-          작성 시 주의사항:
-          1. 실제 대화 내용을 기반으로 구체적인 피드백 제공
-          2. 개선점은 건설적인 제안 형태로 제시
-          3. 지원자의 잠재력과 강점도 반드시 포함
-          """
-      
-      return self.get_model_response(prompt)
+        """최종 평가 생성"""
+        # 실제 대화가 있었는지 확인
+        candidate_responses = [msg for msg in conversation_history if msg.role == 'candidate']
+        
+        if not candidate_responses:
+            return """
+            면접이 진행되지 않았거나 답변이 기록되지 않았습니다.
+            
+            더 나은 피드백을 받기 위해서는:
+            1. 면접관의 질문에 답변을 해주세요
+            2. 구체적인 예시나 경험을 포함하여 답변해주세요
+            3. 여러 주제에 대해 면접을 진행해보세요
+            
+            다시 면접에 도전해보시겠습니까?
+            """
+            
+        # 주제별 대화 품질 분석 (기존 로직)
+        topic_analysis = {}
+        current_topic = None
+        good_topics = []
+        weak_topics = []
+        
+        # 전체 대화 내용을 순회하면서 주제별로 분류 및 분석
+        for msg in conversation_history:
+            if msg.role == 'interviewer' and not msg.feedback:
+                for topic in completed_topics:
+                    if topic in msg.content:
+                        current_topic = topic
+                        if current_topic not in topic_analysis:
+                            topic_analysis[current_topic] = {
+                                'messages': [],
+                                'quality_score': 0
+                            }
+                        break
+            
+            if current_topic:
+                topic_analysis[current_topic]['messages'].append(msg)
+        
+        # 평가 생성을 위한 프롬프트 수정
+        prompt = f"""
+        당신은 {position} 개발자 면접관입니다.
+        지원자와 나눈 실제 대화 내용만을 바탕으로 객관적인 평가를 진행해주세요.
+        
+        진행된 주제: {', '.join(completed_topics) if completed_topics else '없음'}
+        총 답변 수: {len(candidate_responses)}
+        
+        평가 작성 시 주의사항:
+        1. 실제 대화에서 나온 내용만 평가해주세요
+        2. 답변이 부족한 부분은 명확히 지적해주세요
+        3. 보여준 강점은 구체적으로 언급해주세요
+        4. 실제 답변에 기반한 개선점을 제시해주세요
+        5. 과대평가나 과소평가를 피해주세요
+        
+        대화 내역:
+        {self._format_conversation_history(conversation_history)}
+        """
+        
+        return self.get_model_response(prompt)
     
     def refresh_current_topic(self, session: InterviewSession) -> str:
         """현재 주제에 대해 새로운 질문 생성"""
         prompt = f"""
         당신은 {session.position} 개발자 면접관입니다.
-        '{session.current_topic}' 주제에 대해 이전과 다른 새로운 질문을 생성해주세요.
+        '{session.current_topic}' 주제에 대해 다른 질문을 해보려고 합니다.
         
         조건:
         1. 주니어 개발자 수준에 적합한 난이도
         2. 이전 질문과 중복되지 않는 새로운 관점
         3. 실무 경험을 파악할 수 있는 질문
-        4. 자연스러운 한국어로 된 질문
+        4. 자연스러운 한국어로 된 대화체
         
         이전 질문들:
         {self._format_conversation_history(session.get_current_conversation())}
+        
+        면접관처럼 자연스럽게 한 개의 질문을 해주세요.
         """
         
         new_question = self.get_model_response(prompt)
         if new_question:
+            # 불필요한 텍스트 정리
+            new_question = new_question.replace("면접관:", "").strip()
             # 이전 대화 초기화
             session.conversations[session.current_topic] = []
             # 새 질문 추가
             session.add_message('interviewer', new_question)
             return new_question
         
-        return f"{session.current_topic}에 대해 다른 관점에서 설명해주시겠습니까?"
+        return f"{session.current_topic}에 대해 다른 관점에서 이야기해보시겠어요?"
     
 # React 컴포넌트 정의
 EVALUATION_COMPONENT = """
@@ -982,12 +930,8 @@ def main():
                   st.warning("현재 진행 중인 주제가 없습니다.")
         with cols[2]:
             if st.button("🚫 면접 종료", type="secondary", help="면접을 종료하고 최종 평가 보기"):
-              is_valid, message = session.validate_completion()
-              if is_valid:
-                  session.interview_complete = True
-                  st.rerun()
-              else:
-                  st.error(f"면접을 종료할 수 없습니다: {message}")
+                session.interview_complete = True
+                st.rerun()
 
         # 답변 입력 UI
         st.write("### 답변 입력")
