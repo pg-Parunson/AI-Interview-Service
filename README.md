@@ -18,14 +18,14 @@ AI 면접 코치는 개발자 취업 준비생을 위한 AI 기반 모의 면접
 ## 🚀 시작하기
 
 ### 온라인 데모
-- [AI 면접 코치 바로가기](https://ai-interview-coach.streamlit.app)
+- [AI 면접 코치 바로가기](https://ai-interview-coach-v1.streamlit.app)
 
 ### 로컬 설치 및 실행
 
 1. **저장소 클론**
 ```bash
-git clone https://github.com/pg-Parunson/ai-interview-coach.git
-cd ai-interview-coach
+git clone https://github.com/pg-Parunson/ai-interview-coach-v1.git
+cd ai-interview-coach-v1
 ```
 
 2. **의존성 설치**

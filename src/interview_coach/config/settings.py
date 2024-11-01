@@ -68,8 +68,8 @@ class Settings:
     
     # 메뉴 아이템 설정
     MENU_ITEMS = {
-        'Get Help': "https://github.com/pg-Parunson/ai-interview-coach",
-        'Report a bug': "https://github.com/pg-Parunson/ai-interview-coach/issues",
+        'Get Help': "https://github.com/pg-Parunson/ai-interview-coach-v1",
+        'Report a bug': "https://github.com/pg-Parunson/ai-interview-coach-v1/issues",
         'About': """
         ### AI 면접 코치 - LLM 기반 개발자 면접 시뮬레이터
         
@@ -81,6 +81,6 @@ class Settings:
         
         **개발자:** 정재호 (a.k.a Jeff)
         **이메일:** iwogh3176@gmail.com
-        **GitHub:** [pg-Parunson/ai-interview-coach](https://github.com/pg-Parunson/ai-interview-coach)
+        **GitHub:** [pg-Parunson/ai-interview-coach-v1](https://github.com/pg-Parunson/ai-interview-coach-v1)
         """
     }
