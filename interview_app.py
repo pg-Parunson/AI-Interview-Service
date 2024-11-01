@@ -88,9 +88,11 @@ class InterviewSession:
 
 def render_conversation(messages: List[Conversation]) -> None:
     """대화형 UI 렌더링"""
+    if not messages:  # messages가 None이거나 비어있을 경우 처리
+        return
+        
     for msg in messages:
         if msg.role == 'interviewer':
-            # 음성 버튼 제거하고 전체 너비 사용
             st.write(f"👤 면접관: {msg.content}")
         else:
             st.write(f"🧑‍💻 지원자: {msg.content}")
@@ -902,7 +904,8 @@ def main():
         
         # 현재 대화 표시
         st.write("---")
-        render_conversation(session.current_conversation)
+        if session.current_topic:
+            render_conversation(session.get_current_conversation())  # current_conversation 대신 get_current_conversation() 사용
 
         # 컨트롤 버튼들 (주제 스킵, 면접 종료 등)
         cols = st.columns(3)
