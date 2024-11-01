@@ -62,7 +62,7 @@ class Conversation:
 class InterviewSession:
     position: str = None
     current_topic: str = None
-    conversations: Dict[str, List[Conversation]] = field(default_factory=dict)  # 주제별 대화 내용 저장
+    conversations: Dict[str, List[Conversation]] = field(default_factory=dict)
     completed_topics: List[str] = field(default_factory=list)
     waiting_for_next: bool = False
     interview_complete: bool = False
@@ -85,6 +85,26 @@ class InterviewSession:
         if self.current_topic:
             self.completed_topics.append(self.current_topic)
         self.current_topic = None
+
+    def validate_completion(self) -> Tuple[bool, str]:
+        """면접 종료 가능 여부 검증"""
+        # 최소 1개 이상의 주제가 완료되어야 함
+        if not self.completed_topics:
+            return False, "최소 1개 이상의 주제에 대해 답변해야 합니다."
+        
+        # 각 주제별로 최소 1개 이상의 답변이 있어야 함
+        for topic in self.completed_topics:
+            conversation = self.conversations.get(topic, [])
+            candidate_responses = [msg for msg in conversation if msg.role == 'candidate']
+            if not candidate_responses:
+                return False, f"'{topic}' 주제에 대한 답변이 없습니다."
+                
+            # 답변의 유효성 검사 (빈 답변 체크)
+            for response in candidate_responses:
+                if not response.content.strip():
+                    return False, f"'{topic}' 주제에 빈 답변이 있습니다."
+        
+        return True, ""
 
 def render_conversation(messages: List[Conversation]) -> None:
     """대화형 UI 렌더링"""
@@ -613,6 +633,32 @@ class MockInterviewer:
       
       return self.get_model_response(prompt)
     
+    def refresh_current_topic(self, session: InterviewSession) -> str:
+        """현재 주제에 대해 새로운 질문 생성"""
+        prompt = f"""
+        당신은 {session.position} 개발자 면접관입니다.
+        '{session.current_topic}' 주제에 대해 이전과 다른 새로운 질문을 생성해주세요.
+        
+        조건:
+        1. 주니어 개발자 수준에 적합한 난이도
+        2. 이전 질문과 중복되지 않는 새로운 관점
+        3. 실무 경험을 파악할 수 있는 질문
+        4. 자연스러운 한국어로 된 질문
+        
+        이전 질문들:
+        {self._format_conversation_history(session.get_current_conversation())}
+        """
+        
+        new_question = self.get_model_response(prompt)
+        if new_question:
+            # 이전 대화 초기화
+            session.conversations[session.current_topic] = []
+            # 새 질문 추가
+            session.add_message('interviewer', new_question)
+            return new_question
+        
+        return f"{session.current_topic}에 대해 다른 관점에서 설명해주시겠습니까?"
+    
 # React 컴포넌트 정의
 EVALUATION_COMPONENT = """
 // SVG Icons
@@ -928,13 +974,21 @@ def main():
                 st.rerun()
         with cols[1]:
             if st.button("🔄 다른 질문 받기", type="secondary", help="현재 주제에서 다른 질문으로 변경"):
-                session.current_depth = 0
-                st.rerun()
+              if session.current_topic:
+                  with st.spinner('새로운 질문을 준비중입니다...'):
+                      new_question = interviewer.refresh_current_topic(session)
+                  st.rerun()
+              else:
+                  st.warning("현재 진행 중인 주제가 없습니다.")
         with cols[2]:
             if st.button("🚫 면접 종료", type="secondary", help="면접을 종료하고 최종 평가 보기"):
-                session.interview_complete = True
-                st.rerun()
-        
+              is_valid, message = session.validate_completion()
+              if is_valid:
+                  session.interview_complete = True
+                  st.rerun()
+              else:
+                  st.error(f"면접을 종료할 수 없습니다: {message}")
+
         # 답변 입력 UI
         st.write("### 답변 입력")
         answer = st.text_area(
