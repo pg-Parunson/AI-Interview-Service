@@ -144,7 +144,9 @@ def enforce_limits(session: InterviewSession, answer: str) -> Tuple[bool, str]:
         """)
     
     # 현재 주제에서의 답변 횟수 체크
-    current_responses = len([msg for msg in session.current_conversation if msg.role == 'candidate'])
+    current_responses = len([msg for msg in session.get_current_conversation() 
+                           if msg.role == 'candidate'])
+                           
     if current_responses >= UsageLimits.MAX_RESPONSES_PER_TOPIC:
         return False, "이 주제에 대한 연습을 충분히 하셨네요. 다음 주제로 넘어가시겠습니까?"
     
