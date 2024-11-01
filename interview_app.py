@@ -173,37 +173,53 @@ def export_to_txt(session: InterviewSession) -> str:
         "\n" + "=" * 50 + "\n"
     ])
     
-    # 주제별 대화 내용
-    for topic in session.completed_topics:
-        topic_messages = [msg for msg in session.current_conversation 
-                         if getattr(msg, 'topic', None) == topic]
+    # conversation 기록을 주제별로 분류
+    topic_conversations = {}
+    current_topic = None
+    
+    # 전체 대화 내용을 순회하면서 주제별로 분류
+    for msg in session.current_conversation:
+        if msg.role == 'interviewer' and not getattr(msg, 'feedback', None):
+            # 새로운 주제의 시작으로 간주
+            for topic in session.completed_topics:
+                if topic in msg.content:
+                    current_topic = topic
+                    if current_topic not in topic_conversations:
+                        topic_conversations[current_topic] = []
+                    break
         
+        if current_topic:
+            topic_conversations[current_topic].append(msg)
+    
+    # 주제별로 대화 내용 기록
+    for topic in session.completed_topics:
         lines.extend([
             f"[주제] {topic}",
             "-" * 50
         ])
         
-        # 대화 내용
-        for msg in topic_messages:
-            timestamp = msg.timestamp.strftime('%H:%M:%S')
-            role = '👤 면접관' if msg.role == 'interviewer' else '🧑‍💻 지원자'
-            lines.append(f"\n[{timestamp}] {role}:")
-            lines.append(msg.content)
-            
-            # 피드백이 있는 경우
-            if msg.feedback:
-                lines.extend([
-                    "\n🔍 피드백:",
-                    "* 이해도 평가:",
-                    f"  {msg.feedback['understanding']}",
-                    "\n* 강점:",
-                    *[f"  - {strength}" for strength in msg.feedback['strengths']],
-                    "\n* 개선 필요:",
-                    *[f"  - {improvement}" for improvement in msg.feedback['improvements']],
-                    "\n* 학습 제안:",
-                    *[f"  - {suggestion}" for suggestion in msg.feedback['suggestions']]
-                ])
-            
+        # 해당 주제의 대화 내용이 있는 경우
+        if topic in topic_conversations:
+            for msg in topic_conversations[topic]:
+                timestamp = msg.timestamp.strftime('%H:%M:%S')
+                role = '👤 면접관' if msg.role == 'interviewer' else '🧑‍💻 지원자'
+                lines.append(f"\n[{timestamp}] {role}:")
+                lines.append(msg.content)
+                
+                # 피드백이 있는 경우
+                if hasattr(msg, 'feedback') and msg.feedback:
+                    lines.extend([
+                        "\n🔍 피드백:",
+                        "* 이해도 평가:",
+                        f"  {msg.feedback['understanding']}",
+                        "\n* 강점:",
+                        *[f"  - {strength}" for strength in msg.feedback['strengths']],
+                        "\n* 개선 필요:",
+                        *[f"  - {improvement}" for improvement in msg.feedback['improvements']],
+                        "\n* 학습 제안:",
+                        *[f"  - {suggestion}" for suggestion in msg.feedback['suggestions']]
+                    ])
+        
         lines.extend(["\n" + "=" * 50 + "\n"])
     
     # 최종 평가 추가
@@ -216,7 +232,7 @@ def export_to_txt(session: InterviewSession) -> str:
         ])
     
     return '\n'.join(lines)
-
+    
 class MockInterviewer:
     def __init__(self, api_key: str):
         genai.configure(api_key=api_key)
@@ -475,69 +491,113 @@ class MockInterviewer:
 
     def generate_final_evaluation(self, completed_topics: List[str], conversation_history: List[Conversation], position: str) -> str:
         """최종 평가 생성"""
-        # 실제 답변이 있는지 확인 (수정된 부분)
-        valid_answers = [msg for msg in conversation_history if msg.role == 'candidate' and msg.content.strip()]
-        valid_questions = [msg for msg in conversation_history if msg.role == 'interviewer']
+        # 주제별 대화 품질 분석
+        topic_analysis = {}
+        current_topic = None
+        good_topics = []
+        weak_topics = []
         
-        # 답변 비율 계산 수정
-        answer_ratio = len(valid_answers) / len(valid_questions) if valid_questions else 0
+        for msg in conversation_history:
+            if msg.role == 'interviewer' and not msg.feedback:
+                # 새로운 주제 시작 감지
+                for topic in completed_topics:
+                    if topic in msg.content:
+                        current_topic = topic
+                        if current_topic not in topic_analysis:
+                            topic_analysis[current_topic] = {
+                                'messages': [],
+                                'quality_score': 0
+                            }
+                        break
+            
+            if current_topic:
+                topic_analysis[current_topic]['messages'].append(msg)
         
-        # 평가 기준 완화 (수정된 부분)
-        if len(valid_answers) == 0 or answer_ratio < 0.3:  # 기존 0.5에서 0.3으로 완화
-            return """
-            [최종 평가]
+        # 각 주제별 품질 점수 계산
+        for topic, analysis in topic_analysis.items():
+            messages = analysis['messages']
             
-            면접 참여가 다소 제한적이었습니다.
+            # 주제별 대화 수
+            conversation_count = len([m for m in messages if m.role == 'candidate'])
             
-            1. 평가 현황
-            - 일부 질문에 대한 답변이 누락되었습니다
-            - 보다 상세한 답변이 필요한 것으로 보입니다
+            # 피드백이 있는 메시지 확인
+            feedback_msgs = [m for m in messages if m.feedback]
             
-            2. 제안사항
-            - 답변 시 본인의 경험과 지식을 최대한 활용하여 설명해주세요
-            - 모르는 내용이라도 관련된 내용이나 본인의 생각을 공유해주세요
+            if feedback_msgs:
+                last_feedback = feedback_msgs[-1].feedback
+                # 마지막 피드백의 이해도에 따른 점수 할당
+                understanding_score = 0
+                if "충분한" in last_feedback['understanding'] or "좋은" in last_feedback['understanding']:
+                    understanding_score = 3
+                elif "기본적인" in last_feedback['understanding']:
+                    understanding_score = 2
+                
+                # 강점 수에 따른 추가 점수
+                strength_score = min(len(last_feedback['strengths']), 3)
+                
+                # 총점 계산 (대화수 * 0.5 + 이해도 + 강점)
+                quality_score = (min(conversation_count, 4) * 0.5) + understanding_score + strength_score
+                
+                if quality_score >= 4:
+                    good_topics.append(topic)
+                elif quality_score <= 2:
+                    weak_topics.append(topic)
+                    
+                topic_analysis[topic]['quality_score'] = quality_score
+        
+        # 전체 평가 생성
+        good_topics_count = len(good_topics)
+        total_topics = len(completed_topics)
+        
+        if good_topics_count >= total_topics * 0.6:  # 60% 이상의 주제에서 좋은 평가
+            prompt = f"""
+            당신은 {position} 개발자 면접관입니다.
+            전반적으로 우수한 면접 수행을 보여준 지원자에 대한 종합 평가를 진행해주세요.
             
-            3. 향후 준비 방향
-            - 기술 면접 예상 질문들을 미리 준비해보세요
-            - 실제 면접 상황을 가정하고 답변을 연습해보세요
+            다음 정보를 참고해 주세요:
+            - 잘 수행한 주제: {', '.join(good_topics)}
+            - 보완이 필요한 주제: {', '.join(weak_topics)}
+            
+            평가 작성 시 다음 사항을 포함해주세요:
+            1. 전반적인 기술 이해도
+            2. 의사소통 능력
+            3. 실무 적용 가능성
+            4. 향후 발전 가능성
+            5. 개선이 필요한 부분에 대한 구체적인 제안
+            
+            긍정적인 측면에 중점을 두되, 개선점도 건설적으로 제시해주세요.
             """
-        
-        # 기존의 최종 평가 생성 로직
-        prompt = f"""
-        당신은 {position} 개발자 면접관입니다.
-        지금까지의 모든 면접 내용을 바탕으로 최종 평가를 진행해주세요.
-        
-        평가할 때 주의사항:
-        1. 답변의 질적인 측면에 중점을 두어 평가해주세요
-        2. 실제 답변 내용을 기반으로 구체적인 피드백을 제공해주세요
-        3. 개선이 필요한 부분은 건설적인 제안으로 표현해주세요
-        4. 긍정적인 부분도 반드시 포함해주세요
-        
-        면접 진행 주제: {', '.join(completed_topics)}
-        대화 내역:
-        {self._format_conversation_history(conversation_history)}
-        
-        다음 형식으로 평가를 작성해주세요:
-        
-        [종합 평가]
-        
-        1. 전반적인 역량
-        - 기술적 이해도
-        - 실무 적용 능력
-        - 의사소통 능력
-        
-        2. 주요 강점
-        - 기술적 강점
-        - 소프트 스킬
-        
-        3. 개선 제안사항
-        - 보완이 필요한 영역
-        - 구체적인 학습 방향
-        
-        4. 종합 의견
-        - 현재 수준 평가
-        - 성장 가능성
-        """
+        else:
+            # 기존 prompt 사용
+            prompt = f"""
+            당신은 {position} 개발자 면접관입니다.
+            지금까지의 모든 면접 내용을 바탕으로 균형잡힌 평가를 진행해주세요.
+            
+            면접 진행 주제: {', '.join(completed_topics)}
+            잘 수행한 주제: {', '.join(good_topics)}
+            보완이 필요한 주제: {', '.join(weak_topics)}
+            
+            다음 형식으로 평가를 작성해주세요:
+            
+            [종합 평가]
+            
+            1. 전반적인 역량
+            - 기술적 이해도
+            - 실무 적용 능력
+            - 의사소통 능력
+            
+            2. 확인된 강점
+            - 잘 수행한 주제들에서 보여준 역량
+            - 의사소통 방식의 장점
+            
+            3. 보완 필요 사항
+            - 추가 학습이 필요한 영역
+            - 구체적인 개선 방향
+            
+            4. 종합 의견
+            - 현재 수준 평가
+            - 성장 가능성
+            """
         
         return self.get_model_response(prompt)
     
