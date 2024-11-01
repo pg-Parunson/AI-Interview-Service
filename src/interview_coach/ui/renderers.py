@@ -6,7 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from ..core.models import Conversation
-from .components.react_components import EVALUATION_COMPONENT
+from .components.react_components import DASHBOARD_COMPONENT
 
 def render_conversation(messages: List[Conversation]) -> None:
     """대화형 UI 렌더링"""

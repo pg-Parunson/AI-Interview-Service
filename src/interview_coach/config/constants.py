@@ -2,8 +2,8 @@
 
 from typing import Dict, List
 
-VERSION = "1.1.0"
-LAST_UPDATED = "2024-11-01"
+VERSION = "1.2.0"
+LAST_UPDATED = "2024-11-02"
 
 VERSION_INFO = {
     "현재 버전": VERSION,
@@ -16,7 +16,8 @@ VERSION_INFO = {
     ],
     "변경 이력": {
         "1.0.0": "최초 공개 버전",
-        "1.1.0": "내부 구조 리팩토링 및 모듈화 (기능 변화 없음)"
+        "1.1.0": "내부 구조 리팩토링 및 모듈화 (기능 변화 없음)",
+        "1.2.0": "면접자 통계 데이터 대시보드 추가"
     }
 }
 

@@ -1,11 +1,15 @@
 """AI 면접 코치 메인 애플리케이션"""
 
 import streamlit as st
+import streamlit.components.v1 as components
+import json
+from datetime import datetime
 
 from .core.interviewer import MockInterviewer
 from .core.session import InterviewSession
 from .utils.validation import enforce_limits
 from .utils.export import InterviewExporter
+from .stats.storage import FileStatisticsManager
 from .config.settings import Settings, get_api_key
 from .config.constants import VERSION, VERSION_INFO
 from .config.constants import POSITION_TOPICS
@@ -17,6 +21,7 @@ from .ui.renderers import (
     render_answer_input,
     render_final_evaluation
 )
+from .ui.components.react_components import DASHBOARD_COMPONENT
 
 def initialize_session():
     """세션 초기화"""
@@ -24,6 +29,47 @@ def initialize_session():
         st.session_state.session = InterviewSession()
     if 'submitted' not in st.session_state:
         st.session_state.submitted = False
+
+def create_react_container(root_id: str, data: dict) -> str:
+    """React 컴포넌트를 위한 HTML 컨테이너 생성"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <script src="https://unpkg.com/react@17/umd/react.production.min.js"></script>
+        <script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"></script>
+        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        <style>
+            body {{ margin: 0; padding: 1rem; }}
+        </style>
+    </head>
+    <body>
+        <div id="{root_id}"></div>
+        <script>
+            {DASHBOARD_COMPONENT}
+            
+            const stats = {json.dumps(data)};
+            
+            try {{
+                ReactDOM.render(
+                    React.createElement(StatisticsDashboard, {{ 
+                        statistics: stats 
+                    }}),
+                    document.getElementById('{root_id}')
+                );
+            }} catch (error) {{
+                console.error('렌더링 오류:', error);
+                document.getElementById('{root_id}').innerHTML = 
+                    `<div style="color: red; padding: 1rem;">
+                        오류 발생: ${{error.message}}
+                        <pre>${{error.stack}}</pre>
+                    </div>`;
+            }}
+        </script>
+    </body>
+    </html>
+    """
 
 def main():
     """메인 애플리케이션"""
@@ -145,29 +191,46 @@ def main():
             
             with st.spinner('최종 평가를 작성중입니다...'):
                 session.final_feedback = interviewer.generate_final_evaluation(session)
-                st.rerun()
                 
+                # 통계 업데이트
+                stats_manager = FileStatisticsManager()
+                stats_manager.update_statistics(session)
+                st.rerun()
+        
         else:
-            # 최종 평가 표시
-            render_final_evaluation(session.final_feedback)
+            # 1. 최종 평가 표시
+            st.write("## 📋 최종 면접 평가")
+            st.markdown(session.final_feedback)
             
-            # 면접 기록 다운로드 옵션
+            # 2. 면접 기록 다운로드 옵션
             st.write("### 💾 면접 기록 다운로드")
             txt_data = InterviewExporter.to_txt(session)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M')
             
             st.download_button(
                 label="📝 면접 기록 다운로드 (TXT)",
                 data=txt_data.encode('utf-8'),
-                file_name=f"면접기록_{session.position}_{st.session_state.get('timestamp', '')}.txt",
+                file_name=f"면접기록_{session.position}_{timestamp}.txt",
                 mime="text/plain",
-                help="면접 내용을 텍스트 파일로 다운로드합니다. 대화 내용과 피드백을 쉽게 확인할 수 있습니다."
+                help="면접 내용과 피드백을 텍스트 파일로 다운로드합니다."
             )
             
-            # 새로운 면접 시작 옵션
+            # 3. 새로운 면접 시작 옵션
             if st.button("새로운 면접 시작", key="new_interview", type="primary"):
                 st.session_state.session = InterviewSession()
                 st.session_state.submitted = False
                 st.rerun()
+
+            # 4. 통계 표시
+            st.write("### 📊 전체 면접 통계")
+            stats_manager = FileStatisticsManager()
+            stats_summary = stats_manager.get_statistics_summary()
+
+            # React 컴포넌트 렌더링
+            components.html(
+                create_react_container("stats-root", stats_summary),
+                height=500
+            )
 
 if __name__ == "__main__":
     main()

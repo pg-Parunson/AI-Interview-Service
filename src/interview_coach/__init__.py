@@ -4,6 +4,6 @@ from .core.interviewer import MockInterviewer
 from .core.session import InterviewSession
 from .core.models import Conversation
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __author__ = "정재호 (Jeff)"
 __email__ = "iwogh3176@gmail.com"
