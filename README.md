@@ -1,7 +1,7 @@
 # 🤖 AI 면접 코치 - LLM 기반 개발자 면접 시뮬레이터
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ai-interview-service-uzyraeqymsdzsasxpa8ies.streamlit.app)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -106,6 +106,11 @@ streamlit run interview_app.py
 - 답변 최대 길이: 500자
 - 세션당 최대 주제 수: 3개
 - 주제당 최대 답변 횟수: 3회
+
+## 📜 변경 이력
+
+- 1.0.0: 최초 공개 버전
+- 1.1.0: 내부 구조 리팩토링 및 모듈화 (기능 변화 없음)
 
 ## 🤝 기여하기
 
